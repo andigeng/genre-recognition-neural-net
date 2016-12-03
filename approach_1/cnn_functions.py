@@ -15,31 +15,31 @@ def bias_variable(shape):
 
 
 def conv2d(input, filter_shape):
-  conv_weights = weight_variable(shape)
+  """ """
+  conv_weights = weight_variable(filter_shape)
   conv = tf.nn.conv2d(input, conv_weights, strides=[1,1,1,1], padding='SAME')
-  
   return conv
 
 
-def max_pool_2x2(input):
-  return tf.nn.max_pool(input, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
-
-
-def fully_connected_layer(input, shape):
+def fc_layer(input, shape):
+  """ """
   weights = weight_variable(shape)
-  bias = bias_variable(shape)
+  bias = bias_variable([shape[1]])
 
   result = tf.matmul(input, weights) + bias
+  return result
 
 
 def conv_layer(input, filter_shape):
+  """ """
   conv = conv2d(input, filter_shape)
-  conv_bias = bias_variable([shape[3]])
+  conv_bias = bias_variable([filter_shape[3]])
   conv_with_bias = tf.nn.bias_add(conv, conv_bias)
-  conv_with_activation = tf.nn.relu(conv_w_bias)
+  conv_with_activation = tf.nn.relu(conv_with_bias)
 
   return conv_with_activation
 
 
 def pool_layer(conv_layer):
-  return max_pool_2x2(conv_layer, padding='SAME')
+  """ """
+  return tf.nn.max_pool(conv_layer, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')

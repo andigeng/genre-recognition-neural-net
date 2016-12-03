@@ -3,7 +3,7 @@ import sunau as sn
 import os
 
 import scipy.signal
-from scipy.signal import spectrogram as spec
+from scipy.signal import spectrogram as spectro
 
 
 
@@ -129,16 +129,11 @@ class audio_dataset:
       sound = sound[start:start+sample_size]
 
       # Generate f:frequency, t:time, Sxx:spectrogram (amplitude function)
-      f, t, Sxx = spec(sound, nperseg=256)
+      f, t, Sxx = spectro(sound, nperseg=256)
 
       # Log scale the amplitude
       Sxx = np.log(Sxx)
 
       data[i,:,:,0] = Sxx
+
     return data
-
-
-
-dataset = audio_dataset()
-x,y,z, = dataset.next_batch_valid(4)
-print(x)

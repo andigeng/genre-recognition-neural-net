@@ -49,10 +49,7 @@ for genre in genre_locations:
     f = sn.Au_read(filenames[num])
     sound = np.fromstring(f.readframes(262144), dtype=np.dtype('>h'))
 
-    f, t, Sxx = spec(sound, nperseg=256)
-    f = np.arange(0, 130, 1)
-    t = np.arange(0, 1171, 1)
-    print(Sxx[0][0])
+    f, t, Sxx = spec(sound, nperseg=512)
     print("first: {}, last: {}".format(f[1], f[-2]))
 
     max = 0
