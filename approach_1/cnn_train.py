@@ -2,72 +2,54 @@ import tensorflow as tf
 import cnn_functions as cf
 from audio_dataset import audio_dataset
 
-dataset = audio_dataset()
-wave,l,bs = dataset.next_batch_valid(10)
-print wave.shape
 
-#Parameters of the loop
-LOG_STEP = 200
-SAVER_STEP = 100
+# Parameters of the session and network
+LOG_STEP = 200    # Log accuracy every 200 steps
+SAVER_STEP = 100  # Save checkpoint every 100 steps
+BATCH_SIZE = 1    # Per pattern training
 
-# Hyper-parameters of the network
-BATCH_SIZE = 1
+x = tf.placeholder(tf.float32, [None,262144,1,1])
+y_ = tf.placeholder(tf.float32, [None,10])
 
-x = tf.placeholder(tf.float32, [1,129,1170,1])
-y_ = tf.placeholder(tf.float32, [1, 10])
+# Layers of the network. The network is comprised of a series of convolutions
+# and max-pool layers, and ends with two fully connected layers. A softmax
+# function is used for predictions.
 
+h1 = cf.conv_layer(x, [7,1,1,3])      # 262144 x 3
+h2 = cf.pool_layer(h1)                # 131072 x 3
+h3 = cf.conv_layer(h2, [5,1,3,5])     # 131072 x 5
+h4 = cf.pool_layer(h3)                # 65535  x 5
+h5 = cf.conv_layer(h4, [5,1,5,5])     # 65535  x 5
+h6 = cf.pool_layer(h5)                # 32768  x 5
+h7 = cf.conv_layer(h6, [3,1,5,5])     # 32768  x 5
+h8 = cf.pool_layer(h7)                # 16384  x 5
+h9 = cf.conv_layer(h8, [3,1,5,5])     # 16384  x 5
+h10 = cf.pool_layer(h9)               # 8192   x 5
+h11 = cf.conv_layer(h10, [3,1,5,5])   # 8192   x 5
+h12 = cf.pool_layer(h11)              # 4096   x 5
+h13 = cf.conv_layer(h12, [3,1,5,1])   # 4096   x 1
+h14 = cf.pool_layer(h13)              # 2048   x 1
 
-h1 = cf.conv_layer(x, [3,3,1,4]) # feature map = 129 x 1170 x 4
-print("\n {} \n".format(h1._shape))
+hf = tf.reshape(h14, [-1, 2048])
 
-h2 = cf.pool_layer(h1) # size = 65 x 585 x 4
-print("\n {} \n".format(h2._shape))
+# The fully connected layers
+fc1 = cf.fc_layer(hf, [2048,100])
+fc2 = cf.fc_layer(fc1, [100,10])
 
-h3 = cf.pool_layer(h2) # 33 x 293 x 4
-print("\n {} \n".format(h3._shape))
+# The output is passed through a softmax function so it represents probabilities
+y = tf.nn.softmax(fc2)
 
-h4 = cf.conv_layer(h3, [3,3,4,1]) # 33 x 293 x 1
-print("\n {} \n".format(h4._shape))
-
-h5 = cf.pool_layer(h4) #17 x 147 x 1
-print("\n {} \n".format(h5._shape))
-
-h6 = cf.pool_layer(h5) # 9 x 74 x 1
-print("\n {} \n".format(h6._shape))
-
-h7 = cf.pool_layer(h6) # 5 x 37 x 1
-print("\n {} \n".format(h7._shape))
-
-h8 = cf.pool_layer(h7) # 3 x 19 x 1
-print("\n {} \n".format(h8._shape))
-
-h9 = cf.pool_layer(h8) # 2 x 10 x 1
-print("\n {} \n".format(h9._shape))
-
-h10 = cf.pool_layer(h9) # 1 x 5 x 1
-
-print("\n {} \n".format(h10._shape))
-
-hf = tf.reshape(h10, [-1, 5])
-print("\n {} \n".format(hf._shape))
-
-fc1 = cf.fc_layer(hf, [5, 10])
-print("\n {} \n".format(fc1._shape))
-
-# We pass the output through softmax so it represents probabilities
-y = tf.nn.softmax(fc1)
-
-# Our loss/energy function is the cross-entropy between the label and the output
-# We chose this as it offers better results for classification
+# The loss/energy function is the cross-entropy between the label and the output
 loss = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
 
-# We are using the Adam Optimiser because it is effective at managing the learning rate and momentum
-train_step = tf.train.AdamOptimizer(1e-3).minimize(loss)
+# Adaptive Momentum Backpropogation
+train_step = tf.train.AdamOptimizer(3e-4).minimize(loss)
 
 # Classification accuracy is a better indicator of performance
-correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
+correct_predictions = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+dataset = audio_dataset()
 sess = tf.Session()
 sess.run(tf.initialize_all_variables())
 
@@ -79,73 +61,46 @@ checkpoint = 0
 
 
 with sess.as_default():
-  for s in range(1+int(2e1)): 
-    waves, labels, bs = dataset.next_batch_train(BATCH_SIZE)
-    print('step {}'.format(s))
+  for step in range(1+int(2e5)): 
+    batch, labels = dataset.get_batch_train(BATCH_SIZE)
 
-    # We update the log with the newest performance results
-    if (s%LOG_STEP==0):
-      # We calculate the performance results
-      # for the training set on the current batch
-      tr_y = y.eval(feed_dict={x:waves})
-      train_loss = loss.eval(feed_dict={y:tr_y, y_:labels})
-      train_acc = accuracy.eval(feed_dict={y:tr_y, y_:labels})
+    # Print a message for every 50 steps
+    if (step % 50 == 0): 
+      print('step {}'.format(s))
 
-      # For the validation set, we do it on the whole thing
-      # The final results are means of the results for each batch
+    # Update the log with the newest performance results
+    if (step%LOG_STEP==0):
+      # Calculate acccuracy for the current batch.
+      train_y = y.eval(feed_dict={x:batch})
+      train_loss = loss.eval(feed_dict={y:train_y, y_:labels})
+      train_acc = accuracy.eval(feed_dict={y:train_y, y_:labels})
+
+      # Run through the entire validation set; accuracy is the mean of results.
       valid_loss = 0
       valid_acc = 0
       batch_count = 0
+
       while True:
-        va_x, va_y_, bs = dataset.next_batch_valid(BATCH_SIZE)
-        if bs == -1:
+        val_x, val_y_ = dataset.get_batch_valid(BATCH_SIZE)
+        if val_x == -1:
           break
         batch_count +=1
         
-        va_y = y.eval(feed_dict={x:va_x})
-        valid_loss += loss.eval(feed_dict={y:va_y, y_:va_y_})
-        valid_acc += accuracy.eval(feed_dict={y:va_y, y_:va_y_})
+        val_y = y.eval(feed_dict={x:val_x})
+        valid_loss += loss.eval(feed_dict={y:val_y, y_:val_y_})
+        valid_acc += accuracy.eval(feed_dict={y:val_y, y_:val_y_})
         
       valid_loss = valid_loss/batch_count
       valid_acc = valid_acc/batch_count
 
       logline = 'Epoch {} Batch {} train_loss {} train_acc {} valid_loss {} valid_acc {} \n'
-      logline = logline.format(dataset.completed_epochs, s, train_loss, train_acc, valid_loss, valid_acc)
+      logline = logline.format(dataset.completed_epochs, step, train_loss, train_acc, valid_loss, valid_acc)
       log.write(logline)
-      print logline
+      print(logline)
 
-    if s%SAVER_STEP==0:
-      path = saver.save(sess, 'cnn/checkpoints/cnn_',global_step=checkpoint)
-      print "Saved checkpoint to %s" % path
-      checkpoint += 1
+    if step%SAVER_STEP==0:
+      path = saver.save(sess, 'cnn/checkpoints/cnn_', global_step=checkpoint)
+      print("Saved checkpoint to {}".format(path))
+      checkpoint++
       
-    train_step.run(feed_dict={x:waves, y_:labels})
-
-"""
-h2 = cf.conv_layer(h1, [3,3,4,4])   # feature map = 129 x 1170 x 4
-p1 = cf.pool_layer(h2)              # output      = 65 x 585 x 4
-h3 = cf.conv_layer(p1, [3,3,4,8])   # feature map = 65 x 585 x 8
-p2 = cf.pool_layer(h3)              # output      = 33 x 293 x 8
-h4 = cf.conv_layer(p2, [3,3,8,16])  # feature map = 33 x 292 x 16
-p3 = cf.pool_layer(h4)              # output      = 17 x 146 x 16
-h5 = cf.conv_layer(p3, [3,3,16,32]) # feature map = 17 x 146 x 32
-p4 = cf.pool_layer(h5)              # output      = 9 x 73 x 32
-h6 = cf.conv_layer(p4, [3,3,32,64]) # feature map = 9 x 73 x 64
-
-h1 = cf.cnm2x1Layer(x, [3,3,1,5])   # feature map = 129 x 1170 x 5
-                                    # output      = 
-h2 = cf.cnm2x1Layer(h1, [])
-
-h1 = cf.cnm2x1Layer(x, [7,1,1,3]) # size=131072x3
-h3 = cf.cnm2x1Layer(h1, [5,1,3,5]) # size=65536x5
-h4 = cf.cnm2x1Layer(h3, [5,1,5,5]) # size=32768x5
-h5 = cf.cnm2x1Layer(h4, [3,1,5,5]) # size=16384x5
-h6 = cf.cnm2x1Layer(h5, [3,1,5,5]) # size=81925x5
-h7 = cf.cnm2x1Layer(h6, [3,1,5,5]) # size=4096x5
-h8 = cf.cnm2x1Layer(h7, [3,1,5,1]) # size=2048x1
-
-hf = tf.reshape(h8, [-1, 2048])
-
-fc1 = cf.fc_nn(hf,[2048,100])
-fc2 = cf.fc_nn(fc1,[100,10])
-"""
+    train_step.run(feed_dict={x:batch, y_:labels})
