@@ -47,7 +47,7 @@ train_step = tf.train.AdamOptimizer(3e-4).minimize(loss)
 
 # Classification accuracy is a better indicator of performance
 correct_predictions = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
 
 dataset = audio_dataset()
 sess = tf.Session()
@@ -66,7 +66,7 @@ with sess.as_default():
 
     # Print a message for every 50 steps
     if (step % 50 == 0): 
-      print('step {}'.format(s))
+      print('step {}'.format(step))
 
     # Update the log with the newest performance results
     if (step%LOG_STEP==0):
@@ -82,7 +82,7 @@ with sess.as_default():
 
       while True:
         val_x, val_y_ = dataset.get_batch_valid(BATCH_SIZE)
-        if val_x == -1:
+        if val_x == None:
           break
         batch_count +=1
         
@@ -101,6 +101,6 @@ with sess.as_default():
     if step%SAVER_STEP==0:
       path = saver.save(sess, 'cnn/checkpoints/cnn_', global_step=checkpoint)
       print("Saved checkpoint to {}".format(path))
-      checkpoint++
+      checkpoint += 1
       
     train_step.run(feed_dict={x:batch, y_:labels})

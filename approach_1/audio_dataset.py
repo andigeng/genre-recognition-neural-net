@@ -28,15 +28,9 @@ class audio_dataset:
     # Fetch the metadata and populate the arrays.
     self.get_metadata()
 
-    # Convert the arrays into Numpy arrays for easy manipulation
-    train_indices = np.array(train_indices)
-    valid_indices = np.array(valid_indices)
-    train_label = np.array(train_label)
-    valid_label = np.array(valid_label)
-
     # These variables store the size of our training and testing set
-    self.num_train = train_indices.shape[0]
-    self.num_valid = valid_indices.shape[0]
+    self.num_train = self.train_indices.shape[0]
+    self.num_valid = self.valid_indices.shape[0]
 
     # These variables track our progress through the training and testing set
     self.index_in_epoch = 0
@@ -83,11 +77,11 @@ class audio_dataset:
 
     if self.index_in_valid > self.num_valid:
       self.reset_batch_valid()
-      return -1, -1
+      return None, None
     
     end = self.index_in_valid
 
-    batch = self.load_batch(self.valid_indices[start;end])
+    batch = self.load_batch(self.valid_indices[start:end])
     labels = self.valid_label[start:end]
     return batch, labels
 
@@ -137,3 +131,9 @@ class audio_dataset:
         else:
           self.valid_indices.append(filenames[num])
           self.valid_label.append(label)
+
+    # Convert the arrays into Numpy arrays for easy manipulation
+    self.train_indices = np.array(self.train_indices)
+    self.valid_indices = np.array(self.valid_indices)
+    self.train_label = np.array(self.train_label)
+    self.valid_label = np.array(self.valid_label)
