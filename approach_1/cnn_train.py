@@ -39,45 +39,50 @@ fc2 = cf.fc_layer(fc1, [100,10])
 # The output is passed through a softmax function so it represents probabilities
 y = tf.nn.softmax(fc2)
 
-# The loss/energy function is the cross-entropy between the label and the output
-loss = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
+# The loss function is the cross-entropy between the label and the output
+cross_entropy = -tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1])
+loss = tf.reduce_mean(cross_entropy)
 
 # Adaptive Momentum Backpropogation
 train_step = tf.train.AdamOptimizer(3e-4).minimize(loss)
 
 # Classification accuracy is a better indicator of performance
-correct_predictions = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
+predicted_output = tf.argmax(y, 1)
+actual_output = tf.argmax(y_, 1)
+correct_predictions = tf.equal(predicted_output, actual_output)
+
 accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
 
+# Initialize dataset and session
 dataset = audio_dataset()
 sess = tf.Session()
 sess.run(tf.initialize_all_variables())
 
-log = open('cnn/logs/log.txt','a')
+log = open('logs/log.txt','a')
 
 saver = tf.train.Saver()
 checkpoint = 0
-
 
 
 with sess.as_default():
   for step in range(1+int(2e5)): 
     batch, labels = dataset.get_batch_train(BATCH_SIZE)
 
-    # Print a message for every 50 steps
+    # Print message every 50 steps
     if (step % 50 == 0): 
       print('step {}'.format(step))
 
     # Update the log with the newest performance results
     if (step%LOG_STEP==0):
+
       # Calculate acccuracy for the current batch.
       train_y = y.eval(feed_dict={x:batch})
       train_loss = loss.eval(feed_dict={y:train_y, y_:labels})
-      train_acc = accuracy.eval(feed_dict={y:train_y, y_:labels})
+      train_accuracy = accuracy.eval(feed_dict={y:train_y, y_:labels})
 
-      # Run through the entire validation set; accuracy is the mean of results.
+      # Run through the entire validation set -- accuracy is the mean of results.
       valid_loss = 0
-      valid_acc = 0
+      valid_accuracy = 0
       batch_count = 0
 
       while True:
@@ -88,19 +93,21 @@ with sess.as_default():
         
         val_y = y.eval(feed_dict={x:val_x})
         valid_loss += loss.eval(feed_dict={y:val_y, y_:val_y_})
-        valid_acc += accuracy.eval(feed_dict={y:val_y, y_:val_y_})
+        valid_accuracy += accuracy.eval(feed_dict={y:val_y, y_:val_y_})
         
       valid_loss = valid_loss/batch_count
-      valid_acc = valid_acc/batch_count
+      valid_accuracy = valid_accuracy/batch_count
 
-      logline = 'Epoch {} Batch {} train_loss {} train_acc {} valid_loss {} valid_acc {} \n'
-      logline = logline.format(dataset.completed_epochs, step, train_loss, train_acc, valid_loss, valid_acc)
+      logline = 'Epoch {} Batch {} train_loss {} train_accuracy {} valid_loss {} valid_accuracy {} \n'
+      logline = logline.format(dataset.completed_epochs, step, train_loss, train_accuracy, valid_loss, valid_accuracy)
       log.write(logline)
       print(logline)
 
+    """
     if step%SAVER_STEP==0:
-      path = saver.save(sess, 'cnn/checkpoints/cnn_', global_step=checkpoint)
+      path = saver.save(sess, 'checkpoints/cnn_', global_step=checkpoint)
       print("Saved checkpoint to {}".format(path))
       checkpoint += 1
+    """
       
     train_step.run(feed_dict={x:batch, y_:labels})
